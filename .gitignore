@@ -1,0 +1,15 @@
+# dependencies & build output
+node_modules/
+dist/
+*.app/
+
+# runtime data & local files (NEVER share — may contain session/usage data)
+browser-profile/
+mcp-playwright.json
+screen.png
+clippy.log
+state.json
+clippy-data.json
+
+# os
+.DS_Store
