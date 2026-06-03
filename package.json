@@ -1,0 +1,16 @@
+{
+  "name": "clippy-claude",
+  "productName": "Clippy",
+  "version": "1.0.0",
+  "description": "A walking desktop Clippy that chats with Claude, reads your files, sees your screen, and drives a browser.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "npx --yes @electron/packager . Clippy --platform=darwin --overwrite --app-bundle-id=com.clippyclaude.app --out=dist --ignore=\"(^/Clippy\\.app|^/dist|^/browser-profile|clippy\\.log|screen\\.png)\""
+  },
+  "author": "stelloc",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

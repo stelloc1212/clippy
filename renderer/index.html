@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<title>Clippy</title>
+<style>
+  :root {
+    --accent: #2f6fed;
+    --accent-d: #2257c7;
+    --accent-soft: #eef3fe;
+    --ink: #1b2430;
+    --muted: #707a88;
+    --line: #e6e9ef;
+    --surface: #ffffff;
+    --surface-2: #f7f8fa;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif; }
+  html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+  #stage { position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; flex-direction: column; align-items: center; }
+
+  /* ---------- paneel ---------- */
+  #panel {
+    width: 320px; height: 430px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 16px 44px rgba(20,30,50,.22), 0 1px 4px rgba(0,0,0,.06);
+    margin-bottom: 10px; display: none; flex-direction: column; overflow: hidden; position: relative;
+    transform-origin: bottom center; animation: pop .16s ease-out;
+  }
+  #panel.show { display: flex; }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98);} to { opacity: 1; transform: none;} }
+
+  /* header */
+  #header { padding: 10px 12px 9px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  .htop { display: flex; align-items: center; gap: 7px; }
+  .htop .name { font-weight: 650; font-size: 13px; color: var(--ink); letter-spacing: .2px; }
+  .htop .status { margin-left: auto; font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #34c759;
+    box-shadow: 0 0 0 0 rgba(52,199,89,.6); animation: pulse 2.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(52,199,89,.5)} 70%{box-shadow:0 0 0 5px rgba(52,199,89,0)} 100%{box-shadow:0 0 0 0 rgba(52,199,89,0)} }
+  .meterwrap { margin-top: 9px; display: flex; flex-direction: column; gap: 5px; }
+  .mrow { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+  .mlabel { font-size: 9.5px; color: var(--muted); width: 30px; flex-shrink: 0; }
+  .mbar { flex: 1; height: 6px; background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 999px; overflow: hidden; }
+  .mbar > div { height: 100%; width: 0%; border-radius: 999px; background: #34c759; transition: width .5s ease, background .3s; }
+  .mval { font-size: 9.5px; color: var(--muted); width: 58px; text-align: right; flex-shrink: 0;
+    font-variant-numeric: tabular-nums; }
+
+  /* actiebalk */
+  #actions { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--line);
+    background: var(--surface-2); align-items: center; }
+  .btn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid transparent;
+    background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: #55606e; transition: all .12s; position: relative; }
+  .btn svg { width: 16px; height: 16px; }
+  .btn:hover { background: var(--accent-soft); color: var(--accent); }
+  .btn.on { background: var(--accent); color: #fff; }
+  .btn.danger:hover { background: #fdecec; color: #d23b3b; }
+  .spacer { flex: 1; }
+  #model { font-size: 10.5px; color: var(--ink); background: #fff; border: 1px solid var(--line);
+    border-radius: 8px; padding: 3px 4px; outline: none; cursor: pointer; max-width: 92px; }
+  #model:hover { border-color: #bcd7f0; }
+  .btn[data-tip]:hover::after { content: attr(data-tip); position: absolute; bottom: -24px; left: 50%;
+    transform: translateX(-50%); background: var(--ink); color: #fff; font-size: 9.5px; padding: 3px 6px;
+    border-radius: 5px; white-space: nowrap; z-index: 10; pointer-events: none; }
+
+  /* berichten */
+  #log { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px;
+    background: var(--surface); }
+  #log::-webkit-scrollbar { width: 6px; }
+  #log::-webkit-scrollbar-thumb { background: #d4dae2; border-radius: 999px; }
+  .row { display: flex; max-width: 100%; animation: fade .18s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px);} to { opacity: 1;} }
+  .row.me { justify-content: flex-end; }
+  .bub { padding: 7px 10px; border-radius: 11px; font-size: 12.5px; line-height: 1.45; color: var(--ink);
+    max-width: 82%; word-wrap: break-word; -webkit-user-select: text; user-select: text; }
+  .bub.cl { background: var(--surface-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .bub.me { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .bub code { background: rgba(120,130,145,.16); padding: 1px 5px; border-radius: 4px;
+    font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; }
+  .bub.me code { background: rgba(255,255,255,.22); }
+  .bub pre { background: rgba(120,130,145,.12); padding: 7px 9px; border-radius: 7px; overflow-x: auto;
+    margin: 4px 0; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; }
+  .bub b { font-weight: 650; }
+  .sys { align-self: center; font-size: 10px; color: var(--muted); padding: 2px 0; }
+  .metaline { align-self: flex-start; font-size: 9px; color: var(--muted); margin: -4px 0 2px 2px; }
+
+  .typing { display: flex; gap: 4px; padding: 9px 4px; }
+  .typing span { width: 6px; height: 6px; border-radius: 50%; background: #aab3bf; animation: blink 1.2s infinite; }
+  .typing span:nth-child(2){ animation-delay: .2s; } .typing span:nth-child(3){ animation-delay: .4s; }
+  @keyframes blink { 0%,60%,100%{ opacity:.3; transform: translateY(0);} 30%{ opacity:1; transform: translateY(-3px);} }
+
+  /* invoer */
+  #inputRow { display: flex; gap: 7px; padding: 9px 10px; border-top: 1px solid var(--line);
+    background: var(--surface); align-items: flex-end; }
+  #txt { flex: 1; resize: none; min-height: 34px; max-height: 100px; border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px; font-size: 12.5px; outline: none; background: var(--surface-2);
+    color: var(--ink); transition: border-color .15s, background .15s; -webkit-user-select: text; user-select: text; }
+  #txt:focus { border-color: var(--accent); background: #fff; }
+  #txt::placeholder { color: #9aa3af; }
+  #send { width: 34px; height: 34px; flex-shrink: 0; border: none; border-radius: 9px;
+    background: var(--accent); color: #fff; cursor: pointer; display: flex; align-items: center;
+    justify-content: center; transition: all .12s; }
+  #send svg { width: 16px; height: 16px; }
+  #send:hover { background: var(--accent-d); }
+  #send:active { transform: scale(.93); }
+  #attach { width: 32px; height: 34px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--surface-2); color: #55606e; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  #attach svg { width: 16px; height: 16px; }
+  #attach:hover { background: var(--accent-soft); color: var(--accent); border-color: #bcd7f0; }
+
+  #attachBar { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 10px; }
+  #attachBar:not(:empty) { padding: 8px 10px 0; }
+  .chip-file { display: flex; align-items: center; gap: 5px; background: var(--accent-soft);
+    border: 1px solid #cfe0f8; color: #2257c7; font-size: 10.5px; padding: 3px 6px 3px 8px; border-radius: 8px;
+    max-width: 160px; }
+  .chip-file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip-file b { cursor: pointer; font-weight: 700; padding: 0 2px; }
+  .chip-file b:hover { color: #d23b3b; }
+  /* sleep-bestanden-overlay */
+  #drop { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(47,111,237,.12); border: 2px dashed var(--accent); border-radius: 14px;
+    color: var(--accent-d); font-size: 13px; font-weight: 600; z-index: 20; pointer-events: none; }
+  #panel.dragover #drop { display: flex; }
+
+  /* ---------- Clippy ---------- */
+  #clippy { width: 100px; height: 146px; cursor: grab; transform-origin: bottom center;
+    filter: drop-shadow(0 6px 5px rgba(0,0,0,.18)); }
+  #clippy:active { cursor: grabbing; }
+  /* zachte looppas: subtiel op-en-neer + licht wiebelen, altijd bij beweging */
+  #clippy.walk { animation: waddle .5s infinite ease-in-out; }
+  @keyframes waddle {
+    0%   { transform: translateY(0)      rotate(-2.2deg); }
+    25%  { transform: translateY(-1.5px) rotate(0deg);    }
+    50%  { transform: translateY(-3px)   rotate(2.2deg);  }
+    75%  { transform: translateY(-1.5px) rotate(0deg);    }
+    100% { transform: translateY(0)      rotate(-2.2deg); }
+  }
+  /* nieuwsgierig: hoofd kantelen */
+  #clippy.curious { animation: curious 1.4s ease; }
+  @keyframes curious {
+    0%{ transform: rotate(0);} 20%{ transform: rotate(9deg);} 55%{ transform: rotate(9deg);} 100%{ transform: rotate(0);}
+  }
+  /* horizontale spiegeling bij naar links lopen (eigen var zodat het niet botst) */
+  #clippy.face-left { transform: scaleX(-1); }
+  #clippy.face-left.walk { animation: waddle-l .5s infinite ease-in-out; }
+  @keyframes waddle-l {
+    0%   { transform: scaleX(-1) translateY(0)      rotate(-2.2deg); }
+    25%  { transform: scaleX(-1) translateY(-1.5px) rotate(0deg);    }
+    50%  { transform: scaleX(-1) translateY(-3px)   rotate(2.2deg);  }
+    75%  { transform: scaleX(-1) translateY(-1.5px) rotate(0deg);    }
+    100% { transform: scaleX(-1) translateY(0)      rotate(-2.2deg); }
+  }
+  #eyebrows { transition: transform .14s ease; transform-origin: center; }
+  #eyebrows.raise { transform: translateY(-3px); }
+  #eyebrows.raiseBig { transform: translateY(-5px); }
+  /* knipperen */
+  #eyes { transform-box: fill-box; transform-origin: center; }
+  #eyes.blink { animation: blink-eyes .18s ease; }
+  @keyframes blink-eyes { 0%,100%{ transform: scaleY(1);} 50%{ transform: scaleY(.08);} }
+  /* "klaar met denken"-wolkje boven Clippy */
+  #notify { position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%) scale(0);
+    width: 30px; height: 26px; background: #fff; border: 2px solid var(--accent); border-radius: 13px;
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px;
+    color: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,.22); pointer-events: none; opacity: 0;
+    transition: opacity .2s; z-index: 30; }
+  #notify::after { content: ""; position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
+    border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid var(--accent); }
+  #notify.show { opacity: 1; animation: notifyPop .9s ease infinite; }
+  @keyframes notifyPop {
+    0%,100% { transform: translateX(-50%) translateY(0)    scale(1); }
+    50%     { transform: translateX(-50%) translateY(-4px) scale(1.08); }
+  }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="panel">
+      <div id="header">
+        <div class="htop">
+          <span class="name">Clippy</span>
+          <span class="status"><span class="dot"></span>Verbonden met Claude</span>
+        </div>
+        <div class="meterwrap">
+          <div class="mrow" id="row5h" title="Klik om de 5-uurslimiet in te stellen">
+            <span class="mlabel">5&nbsp;uur</span>
+            <div class="mbar"><div id="fill5h"></div></div>
+            <span class="mval" id="val5h">–</span>
+          </div>
+          <div class="mrow" id="rowWk" title="Klik om de weeklimiet in te stellen">
+            <span class="mlabel">Week</span>
+            <div class="mbar"><div id="fillWk"></div></div>
+            <span class="mval" id="valWk">–</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="actions">
+        <button class="btn" data-act="look" data-tip="Kijk mee op mijn scherm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>
+        </button>
+        <button class="btn" data-act="browser" data-tip="Browser-taak uitvoeren">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></svg>
+        </button>
+        <button class="btn" data-act="tokens" data-tip="Verbruik">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>
+        </button>
+        <button class="btn" data-act="new" data-tip="Nieuw gesprek">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="btn" data-act="pin" id="pinBtn" data-tip="Op deze plek vastzetten">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6zM12 16v5"/></svg>
+        </button>
+        <select id="model" title="Kies het Claude-model">
+          <option value="">Standaard</option>
+          <option value="claude-opus-4-8">Opus 4.8</option>
+          <option value="sonnet">Sonnet</option>
+          <option value="haiku">Haiku</option>
+        </select>
+        <div class="spacer"></div>
+        <button class="btn" data-act="close" data-tip="Chat sluiten">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <button class="btn danger" data-act="quit" data-tip="Clippy afsluiten">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v8M6.3 7.3a8 8 0 1 0 11.4 0"/></svg>
+        </button>
+      </div>
+
+      <div id="log"></div>
+
+      <div id="attachBar"></div>
+      <div id="inputRow">
+        <button id="attach" title="Bestand of foto toevoegen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.05 12.25 20.2a5.5 5.5 0 0 1-7.78-7.78l9.2-9.19a3.67 3.67 0 0 1 5.18 5.18l-9.2 9.2a1.83 1.83 0 0 1-2.6-2.6l8.5-8.48"/></svg>
+        </button>
+        <textarea id="txt" rows="1" placeholder="Stel een vraag…"></textarea>
+        <button id="send" title="Sturen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+      <div id="drop">Laat los om toe te voegen</div>
+    </div>
+
+    <svg id="clippy" viewBox="0 0 100 146" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- metaal-buis dwarsdoorsnede: licht-donker-licht = glimmend rond draad -->
+        <linearGradient id="metal" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#8b97a4"/>
+          <stop offset=".22" stop-color="#f1f4f7"/>
+          <stop offset=".45" stop-color="#b4bfca"/>
+          <stop offset=".62" stop-color="#dfe5ec"/>
+          <stop offset="1" stop-color="#7e8b99"/>
+        </linearGradient>
+        <radialGradient id="eyeShade" cx=".38" cy=".32" r=".8">
+          <stop offset="0" stop-color="#ffffff"/>
+          <stop offset="1" stop-color="#dfe5ec"/>
+        </radialGradient>
+      </defs>
+
+      <rect x="0" y="0" width="100" height="146" fill="transparent" style="pointer-events:all"/>
+
+      <!-- contactschaduw op de grond -->
+      <ellipse cx="50" cy="138" rx="25" ry="5" fill="#000" opacity=".12"/>
+
+      <g id="body" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <!-- BUITENSTE lus van de paperclip -->
+        <path d="M34 48 L34 108 Q34 126 50 126 Q66 126 66 108 L66 48 Q66 32 50 32 Q34 32 34 48 Z"
+              stroke="#5c6976" stroke-width="11.5"/>
+        <path d="M34 48 L34 108 Q34 126 50 126 Q66 126 66 108 L66 48 Q66 32 50 32 Q34 32 34 48 Z"
+              stroke="url(#metal)" stroke-width="8.6"/>
+        <!-- BINNENSTE lus, piept er bovenuit -->
+        <path d="M42 40 L42 88 Q42 100 50 100 Q58 100 58 88 L58 40 Q58 28 50 28 Q42 28 42 40 Z"
+              stroke="#5c6976" stroke-width="11.5"/>
+        <path d="M42 40 L42 88 Q42 100 50 100 Q58 100 58 88 L58 40 Q58 28 50 28 Q42 28 42 40 Z"
+              stroke="url(#metal)" stroke-width="8.6"/>
+        <!-- glanslijnen op de linkerflank -->
+        <path d="M35 52 L35 104" stroke="#fff" stroke-width="1.8" opacity=".5" stroke-linecap="round"/>
+        <path d="M43 44 L43 86" stroke="#fff" stroke-width="1.6" opacity=".45" stroke-linecap="round"/>
+      </g>
+
+      <!-- grote bolle googly-ogen, vlak boven elkaar (raken elkaar net) -->
+      <g id="eyes">
+        <ellipse id="eyeL" cx="41" cy="50" rx="12" ry="13.5" fill="url(#eyeShade)" stroke="#5a6675" stroke-width="2.2"/>
+        <ellipse id="eyeR" cx="59" cy="50" rx="12" ry="13.5" fill="url(#eyeShade)" stroke="#5a6675" stroke-width="2.2"/>
+        <g id="pupilL"><circle cx="41" cy="51" r="4.8" fill="#1c232b"/><circle cx="42.7" cy="48.8" r="1.5" fill="#fff"/></g>
+        <g id="pupilR"><circle cx="59" cy="51" r="4.8" fill="#1c232b"/><circle cx="60.7" cy="48.8" r="1.5" fill="#fff"/></g>
+      </g>
+
+      <!-- dikke Groucho-wenkbrauwen -->
+      <g id="eyebrows" stroke="#2b333d" stroke-width="4.3" stroke-linecap="round" fill="none">
+        <path d="M28 35 Q38 27 50 33"/>
+        <path d="M50 33 Q62 27 72 35"/>
+      </g>
+    </svg>
+    <div id="notify" title="Clippy is klaar — klik om te lezen">!</div>
+  </div>
+
+<script>
+  const clippyEl = document.getElementById('clippy');
+  const panel = document.getElementById('panel');
+  const log = document.getElementById('log');
+  const txt = document.getElementById('txt');
+  const send = document.getElementById('send');
+  const fill5h = document.getElementById('fill5h'), fillWk = document.getElementById('fillWk');
+  const val5h = document.getElementById('val5h'), valWk = document.getElementById('valWk');
+  const row5h = document.getElementById('row5h'), rowWk = document.getElementById('rowWk');
+  const pinBtn = document.getElementById('pinBtn');
+  const brows = document.getElementById('eyebrows');
+  const eyes = document.getElementById('eyes');
+  const eyeL = document.getElementById('eyeL'), eyeR = document.getElementById('eyeR');
+  const pupilL = document.getElementById('pupilL'), pupilR = document.getElementById('pupilR');
+  const attach = document.getElementById('attach');
+  const attachBar = document.getElementById('attachBar');
+  const modelSel = document.getElementById('model');
+  modelSel.addEventListener('change', async () => {
+    await window.clippy.setModel(modelSel.value);
+    sys(modelSel.value ? `Model ingesteld op ${modelSel.options[modelSel.selectedIndex].text}.` : 'Model teruggezet op standaard.');
+  });
+  const notify = document.getElementById('notify');
+  function showNotify() { notify.classList.add('show'); raiseBrow(true); }
+  function hideNotify() { notify.classList.remove('show'); }
+
+  window.clippy.onWalking(v => clippyEl.classList.toggle('walk', !!v && !panel.classList.contains('show')));
+  window.clippy.onFacing(dir => clippyEl.classList.toggle('face-left', dir < 0));
+
+  // ---------- ogen volgen de muis ----------
+  window.clippy.onGaze(cur => {
+    const flipped = clippyEl.classList.contains('face-left');
+    [[eyeL, pupilL], [eyeR, pupilR]].forEach(([eye, pupil]) => {
+      const r = eye.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const ang = Math.atan2(cur.y - cy, cur.x - cx);
+      const reach = 6;
+      let ox = Math.cos(ang) * reach, oy = Math.sin(ang) * reach;
+      if (flipped) ox = -ox;
+      pupil.setAttribute('transform', `translate(${ox.toFixed(2)} ${oy.toFixed(2)})`);
+    });
+  });
+
+  // ---------- persoonlijkheid: wenkbrauwen, knipperen, nieuwsgierigheid ----------
+  function raiseBrow(big) {
+    const c = big ? 'raiseBig' : 'raise';
+    brows.classList.add(c); setTimeout(() => brows.classList.remove(c), big ? 260 : 190);
+  }
+  function blink() { eyes.classList.add('blink'); setTimeout(() => eyes.classList.remove('blink'), 200); }
+  const walking = () => clippyEl.classList.contains('walk');
+  function curious() {
+    // nieuwsgierig kijken: hoofd kantelen + wenkbrauwen op (alleen als hij stilstaat)
+    if (walking() || clippyEl.classList.contains('curious')) return;
+    clippyEl.classList.add('curious');
+    raiseBrow(true);
+    setTimeout(() => raiseBrow(false), 500);
+    setTimeout(() => clippyEl.classList.remove('curious'), 1450);
+  }
+  // losse wenkbrauw-knikjes
+  (function loopBrow() {
+    setTimeout(() => {
+      raiseBrow(); if (Math.random() < 0.3) setTimeout(raiseBrow, 300);
+      loopBrow();
+    }, 1600 + Math.random() * 3200);
+  })();
+  // knipperen
+  (function loopBlink() {
+    setTimeout(() => { blink(); if (Math.random() < 0.25) setTimeout(blink, 240); loopBlink(); }, 2500 + Math.random() * 4500);
+  })();
+  // af en toe nieuwsgierig rondkijken
+  (function loopCurious() {
+    setTimeout(() => { if (Math.random() < 0.7) curious(); loopCurious(); }, 11000 + Math.random() * 16000);
+  })();
+
+  // ---------- klik vs sleep ----------
+  let pressing = false, dragging = false, downScreen = null, grabOffset = null;
+  clippyEl.addEventListener('mousedown', (e) => {
+    pressing = true; dragging = false;
+    downScreen = { x: e.screenX, y: e.screenY };
+    grabOffset = { x: e.clientX, y: e.clientY };
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!pressing || dragging) return;
+    if (Math.hypot(e.screenX - downScreen.x, e.screenY - downScreen.y) > 5) {
+      dragging = true; window.clippy.dragStart(grabOffset);
+    }
+  });
+  document.addEventListener('mouseup', () => {
+    if (!pressing) return;
+    pressing = false;
+    if (dragging) { window.clippy.dragEnd(); dragging = false; }
+    else setOpen(!open);
+  });
+
+  // ---------- chat openen/sluiten ----------
+  let open = false;
+  function setOpen(v) {
+    open = v;
+    window.clippy.setChatOpen(v);
+    panel.classList.toggle('show', v);
+    if (v) { hideNotify(); refreshMeter(); setTimeout(() => txt.focus(), 80); }
+  }
+
+  // ---------- lichte markdown ----------
+  function md(t) {
+    let s = t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    s = s.replace(/```([\s\S]*?)```/g, (_,c)=>'<pre>'+c.trim()+'</pre>');
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+    s = s.replace(/(?:^|[\s(])_([^_]+)_(?=[\s).,!?]|$)/g, m => m.replace(/_([^_]+)_/, '<i>$1</i>'));
+    s = s.replace(/\n/g, '<br>');
+    return s;
+  }
+  function add(role, text) {
+    const row = document.createElement('div'); row.className = 'row ' + role;
+    const b = document.createElement('div'); b.className = 'bub ' + role; b.innerHTML = md(text);
+    row.appendChild(b); log.appendChild(row); log.scrollTop = log.scrollHeight; return b;
+  }
+  function sys(text) {
+    const d = document.createElement('div'); d.className = 'sys'; d.textContent = text;
+    log.appendChild(d); log.scrollTop = log.scrollHeight;
+  }
+  function modelName(id) {
+    if (!id) return '';
+    const m = id.match(/(opus|sonnet|haiku)-(\d+)-(\d+)/);
+    if (!m) return id;
+    return m[1][0].toUpperCase() + m[1].slice(1) + ' ' + m[2] + '.' + m[3];
+  }
+  function addMeta(id) {
+    const name = modelName(id); if (!name) return;
+    const d = document.createElement('div'); d.className = 'metaline'; d.textContent = 'via ' + name;
+    log.appendChild(d); log.scrollTop = log.scrollHeight;
+  }
+  function showTyping() {
+    const row = document.createElement('div'); row.className = 'row cl';
+    const b = document.createElement('div'); b.className = 'bub cl';
+    b.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+    row.appendChild(b); log.appendChild(row); log.scrollTop = log.scrollHeight; return row;
+  }
+
+  // ---------- bijlagen ----------
+  let attachments = [];
+  function basename(p) { return p.split('/').pop(); }
+  function renderAttachments() {
+    attachBar.innerHTML = '';
+    attachments.forEach((p, i) => {
+      const c = document.createElement('div'); c.className = 'chip-file';
+      c.innerHTML = `<span>${basename(p).replace(/</g,'&lt;')}</span><b data-i="${i}">×</b>`;
+      c.querySelector('b').addEventListener('click', () => { attachments.splice(i, 1); renderAttachments(); });
+      attachBar.appendChild(c);
+    });
+  }
+  function addFiles(paths) {
+    for (const p of paths) if (p && !attachments.includes(p)) attachments.push(p);
+    renderAttachments();
+  }
+  attach.addEventListener('click', async () => addFiles(await window.clippy.pickFiles()));
+  // voorkom dat het venster naar een neergezet bestand navigeert
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => e.preventDefault());
+  // slepen-en-neerzetten van bestanden op het paneel
+  ['dragenter','dragover'].forEach(ev => panel.addEventListener(ev, e => { e.preventDefault(); panel.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(ev => panel.addEventListener(ev, e => {
+    e.preventDefault();
+    if (ev === 'dragleave' && e.relatedTarget && panel.contains(e.relatedTarget)) return;
+    panel.classList.remove('dragover');
+  }));
+  panel.addEventListener('drop', e => {
+    const paths = Array.from(e.dataTransfer.files || []).map(f => f.path).filter(Boolean);
+    if (paths.length) addFiles(paths);
+  });
+
+  async function sendMsg() {
+    const text = txt.value.trim();
+    if (!text && attachments.length === 0) return;
+    const files = attachments.slice();
+    txt.value = ''; autoGrow();
+    add('me', (text || '(bestanden gedeeld)') + (files.length ? '\nBijlagen: ' + files.map(basename).join(', ') : ''));
+    attachments = []; renderAttachments();
+    const t = showTyping();
+    const r = await window.clippy.chat(files.length ? { text, files } : text);
+    t.remove();
+    if (r.ok) { add('cl', r.text); addMeta(r.usedModel); curious(); if (r.state) paintMeter(r.state); }
+    else add('cl', r.error || 'Er ging iets mis.');
+    if (!open) showNotify(); // chat dicht? laat weten dat hij klaar is
+  }
+  async function lookAtScreen() {
+    const q = txt.value.trim();
+    txt.value = ''; autoGrow();
+    if (q) add('me', q);
+    sys('Clippy bekijkt je scherm…');
+    const t = showTyping();
+    const r = await window.clippy.look(q); t.remove();
+    if (r.ok) { add('cl', r.text); addMeta(r.usedModel); curious(); if (r.state) paintMeter(r.state); }
+    else add('cl', r.error || 'Er ging iets mis.');
+    if (!open) showNotify();
+  }
+  async function browserTask() {
+    const q = txt.value.trim();
+    if (!q) { add('cl', 'Typ eerst wat ik in de browser moet doen, bijvoorbeeld: "ga naar website X (ik ben al ingelogd) en download alle facturen van mei".'); return; }
+    txt.value = ''; autoGrow();
+    add('me', q);
+    sys('Clippy opent de browser en gaat aan de slag…');
+    const t = showTyping();
+    const r = await window.clippy.browserTask(q); t.remove();
+    if (r.ok) { add('cl', r.text); addMeta(r.usedModel); curious(); if (r.state) paintMeter(r.state); }
+    else add('cl', r.error || 'Er ging iets mis.');
+    if (!open) showNotify();
+  }
+  send.addEventListener('click', sendMsg);
+  txt.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } });
+  function autoGrow() { txt.style.height = 'auto'; txt.style.height = Math.min(txt.scrollHeight, 100) + 'px'; }
+  txt.addEventListener('input', autoGrow);
+
+  // ---------- meter ----------
+  function fmt(n){ return n.toLocaleString('nl-NL'); }
+  function humanDur(ms) {
+    if (ms <= 0) return '–';
+    const m = Math.round(ms / 60000), h = Math.floor(m / 60);
+    return h > 0 ? `${h}u ${m % 60}m` : `${m}m`;
+  }
+  function setBar(fill, val, w) {
+    fill.style.width = Math.min(100, w.pct).toFixed(0) + '%';
+    fill.style.background = w.pct < 60 ? '#34c759' : w.pct < 85 ? '#e6b400' : '#e0524a';
+    val.textContent = w.pct.toFixed(0) + '%';
+    val.parentElement.title = `${fmt(w.tokens)} / ${fmt(w.budget)} tokens · $${w.cost.toFixed(2)} · loopt leeg over ${humanDur(w.resetMs)} (klik = limiet instellen)`;
+  }
+  let lastState = null;
+  function paintMeter(s) {
+    lastState = s;
+    setBar(fill5h, val5h, s.fiveH);
+    setBar(fillWk, valWk, s.week);
+    pinBtn.classList.toggle('on', !!s.pinned);
+    if (s.model !== undefined && document.activeElement !== modelSel) modelSel.value = s.model || '';
+  }
+  async function refreshMeter(){ paintMeter(await window.clippy.getState()); }
+
+  row5h.addEventListener('click', async () => {
+    const cur = lastState ? lastState.fiveH.budget : 2000000;
+    const v = prompt('Tokenlimiet voor het 5-uurs venster:', cur);
+    if (v) paintMeter(await window.clippy.setBudgets({ five: v.replace(/\D/g, '') }));
+  });
+  rowWk.addEventListener('click', async () => {
+    const cur = lastState ? lastState.week.budget : 10000000;
+    const v = prompt('Tokenlimiet voor het 7-daagse venster:', cur);
+    if (v) paintMeter(await window.clippy.setBudgets({ week: v.replace(/\D/g, '') }));
+  });
+
+  // ---------- acties ----------
+  document.querySelectorAll('.btn').forEach(c => {
+    c.addEventListener('click', async () => {
+      const act = c.dataset.act;
+      if (act === 'look') {
+        await lookAtScreen();
+      } else if (act === 'browser') {
+        await browserTask();
+      } else if (act === 'tokens') {
+        const s = await window.clippy.getState();
+        add('cl', `**Verbruik via Clippy**\n` +
+          `**Laatste 5 uur:** ${fmt(s.fiveH.tokens)} / ${fmt(s.fiveH.budget)} tokens (${s.fiveH.pct.toFixed(0)}%) · $${s.fiveH.cost.toFixed(2)} · loopt leeg over ${humanDur(s.fiveH.resetMs)}\n` +
+          `**Deze week:** ${fmt(s.week.tokens)} / ${fmt(s.week.budget)} tokens (${s.week.pct.toFixed(0)}%) · $${s.week.cost.toFixed(2)} · loopt leeg over ${humanDur(s.week.resetMs)}\n` +
+          `**Totaal sinds start:** ${fmt(s.usedTokens)} tokens · $${s.usedCostUsd.toFixed(2)} · ${s.messages} berichten\n` +
+          `_Let op: dit telt alleen je gesprekken met Clippy, niet je hele Claude Code-plan._`);
+        paintMeter(s);
+      } else if (act === 'new') {
+        await window.clippy.resetSession(); log.innerHTML = '';
+        add('cl', 'Nieuw gesprek gestart. Waarmee kan ik je helpen?');
+      } else if (act === 'pin') {
+        const pinned = await window.clippy.togglePin();
+        pinBtn.classList.toggle('on', pinned);
+        sys(pinned ? 'Clippy staat vast op deze plek.' : 'Clippy loopt weer vrij rond.');
+      } else if (act === 'close') {
+        setOpen(false);
+      } else if (act === 'quit') {
+        if (confirm('Clippy helemaal afsluiten?')) window.clippy.quit();
+      }
+    });
+  });
+
+  add('cl', 'Hallo, ik ben Clippy. Klik op mij om te chatten of sleep me ergens heen. Met het oog-icoon kan ik meekijken op je scherm.');
+</script>
+</body>
+</html>
